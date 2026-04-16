@@ -6,42 +6,17 @@ import { useEditor } from '../../core/store'
 import { CanvasErrorBoundary } from '../../shared/error-boundary'
 import { CameraState } from '../../core/types'
 import { ToolButton, ZoomLabel } from '../../shared/ui'
-import { colors, spacing } from '../../shared/tokens/design-tokens'
+import { colors } from '../../shared/tokens/design-tokens'
 import { rectAdapter } from '../../core/interaction/shape-adapters/rect-adapter'
 import { cursorForAffordance, CursorSource } from '../../core/interaction/cursor-map'
+import {
+  STAGE_W, STAGE_H, RULER_SIZE,
+  screenToWorld, fitCamera, zoomToward
+} from '../../core/coord-transform'
+import { HorizontalRuler } from './rulers/HorizontalRuler'
+import { VerticalRuler } from './rulers/VerticalRuler'
 
 type Point = { x: number; y: number }
-
-const STAGE_W = 800
-const STAGE_H = 480
-const MIN_SCALE = 0.05
-const MAX_SCALE = 20
-
-/** Compute a camera that fits the given rect into the stage with padding. */
-function fitCamera(rect: { x: number; y: number; width: number; height: number }): CameraState {
-  const pad = 60
-  const scale = Math.min(
-    (STAGE_W - pad * 2) / rect.width,
-    (STAGE_H - pad * 2) / rect.height,
-    2
-  )
-  return {
-    scale,
-    x: (STAGE_W - rect.width * scale) / 2 - rect.x * scale,
-    y: (STAGE_H - rect.height * scale) / 2 - rect.y * scale,
-  }
-}
-
-/** Zoom camera toward a focal point in screen coords. */
-function zoomToward(camera: CameraState, focalX: number, focalY: number, factor: number): CameraState {
-  const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, camera.scale * factor))
-  const ratio = newScale / camera.scale
-  return {
-    scale: newScale,
-    x: focalX - (focalX - camera.x) * ratio,
-    y: focalY - (focalY - camera.y) * ratio,
-  }
-}
 
 export const CanvasRoot: React.FC = () => {
   const { state, dispatch } = useEditor()
@@ -56,6 +31,8 @@ export const CanvasRoot: React.FC = () => {
 
   // Pan (space + LMB) refs
   const [spaceDown, setSpaceDown] = useState(false)
+  // Ref counterpart so event handlers always read the current value without stale closures.
+  const spaceDownRef = useRef(false)
   const isPanningRef = useRef(false)
   const panStartScreenRef = useRef<Point | null>(null)
   const panStartCameraRef = useRef<CameraState | null>(null)
@@ -66,6 +43,9 @@ export const CanvasRoot: React.FC = () => {
 
   /** Tracks whether pointer is currently over an overlay handle (set via OverlayLayer callback). */
   const handleHoveredRef = useRef(false)
+
+  /** Tracks whether pointer is hovering over the object body (for hover outline on unselected objects). */
+  const [bodyHovered, setBodyHovered] = useState(false)
 
   /** Applies a cursor to the Stage container imperatively — no React re-render needed. */
   const applyCursor = (source: CursorSource) => {
@@ -79,8 +59,15 @@ export const CanvasRoot: React.FC = () => {
       // Space → pan mode (ignore if typing in an input)
       if (e.code === 'Space' && (e.target as HTMLElement).tagName !== 'INPUT') {
         e.preventDefault()
+        spaceDownRef.current = true
         setSpaceDown(true)
         applyCursor('pan')
+        return
+      }
+      // Shift+R → toggle rulers
+      if (e.shiftKey && e.key === 'R' && (e.target as HTMLElement).tagName !== 'INPUT') {
+        e.preventDefault()
+        dispatch({ type: 'toggleRulers' })
         return
       }
       if (!e.ctrlKey) return
@@ -99,6 +86,7 @@ export const CanvasRoot: React.FC = () => {
     }
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
+        spaceDownRef.current = false
         setSpaceDown(false)
         isPanningRef.current = false
         panStartScreenRef.current = null
@@ -123,8 +111,6 @@ export const CanvasRoot: React.FC = () => {
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
-  const camera = state.camera
-
   const handleWheel = (e: any) => {
     const evt: WheelEvent = e.evt
     const rawPos = stageRef.current.getPointerPosition()
@@ -146,11 +132,11 @@ export const CanvasRoot: React.FC = () => {
   const handleMouseDown = (e: any) => {
     const rawPos = stageRef.current.getPointerPosition()
     const cam = state.camera
-    // Convert screen → world coordinates
-    const worldPos = { x: (rawPos.x - cam.x) / cam.scale, y: (rawPos.y - cam.y) / cam.scale }
+    // Convert screen → world coordinates (y-up)
+    const worldPos = screenToWorld(rawPos.x, rawPos.y, cam)
 
     // Space held → start panning, ignore object interactions
-    if (spaceDown) {
+    if (spaceDownRef.current) {
       isPanningRef.current = true
       panStartScreenRef.current = rawPos
       panStartCameraRef.current = { ...cam }
@@ -189,16 +175,21 @@ export const CanvasRoot: React.FC = () => {
     }
 
     if (!isDragging) {
+      // Space pan mode: cursor is managed by keydown/keyup — don't touch it here.
+      if (spaceDownRef.current) return
       // Idle: update body hover cursor (unless pointer is over an overlay handle)
       if (!handleHoveredRef.current) {
-        const worldPos = { x: (rawPos.x - cam.x) / cam.scale, y: (rawPos.y - cam.y) / cam.scale }
+        const worldPos = screenToWorld(rawPos.x, rawPos.y, cam)
         const rect = stateRef.current.document.rect
         const hit = rect.visible && !rect.locked ? rectAdapter.hitTest(rect, worldPos) : null
-        applyCursor(hit ?? 'none')
+        const isSelected = stateRef.current.ui.selectedId === rect.id
+        setBodyHovered(hit === 'body')
+        // 'move' cursor only when the object is already selected; unselected hover keeps default
+        applyCursor(hit === 'body' && !isSelected ? 'none' : (hit ?? 'none'))
       }
       return
     }
-    const worldPos = { x: (rawPos.x - cam.x) / cam.scale, y: (rawPos.y - cam.y) / cam.scale }
+    const worldPos = screenToWorld(rawPos.x, rawPos.y, cam)
     const start = dragStartRef.current
     const base = baseRectRef.current
     if (!start || !base) return
@@ -225,39 +216,70 @@ export const CanvasRoot: React.FC = () => {
     applyCursor('none')
   }
 
+  const camera = state.camera
+  const showRulers = state.ui.showRulers
+  const selectedRect = state.ui.selectedId === state.document.rect.id
+    ? (state.interaction.previewRect ?? state.document.rect)
+    : null
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div className="canvas-area" ref={containerRef}>
         <div className="canvas-toolbar">
           <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: fitCamera(state.document.rect) })}>Fit</ToolButton>
-          <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: { x: 0, y: 0, scale: 1 } })}>1:1</ToolButton>
+          <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: { ...camera, x: 0, y: 0, scale: 1 } })}>1:1</ToolButton>
           <ZoomLabel scale={camera.scale} />
         </div>
         <CanvasErrorBoundary>
-          <Stage
-            width={STAGE_W}
-            height={STAGE_H}
-            style={{
-              background: '#ffffff',
-              boxShadow: `0 0 0 1px ${colors.border}`,
-            }}
-            ref={stageRef}
-            scaleX={camera.scale}
-            scaleY={camera.scale}
-            x={camera.x}
-            y={camera.y}
-            onWheel={handleWheel}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-          >
-            <Layer>
-              <DocumentLayer />
-            </Layer>
-            <Layer>
-              <OverlayLayer onHandleHoverChange={(h) => { handleHoveredRef.current = h }} />
-            </Layer>
-          </Stage>
+          {/* ruler + stage block — centered in canvas-area */}
+          <div style={{ display: 'inline-block', lineHeight: 0 }}>
+            {showRulers && (
+              <div style={{ display: 'flex' }}>
+                {/* top-left corner square */}
+                <div style={{
+                  width: RULER_SIZE, height: RULER_SIZE, flexShrink: 0,
+                  background: '#1a1a1a', borderRight: `1px solid ${colors.border}`, borderBottom: `1px solid ${colors.border}`,
+                }} />
+                <HorizontalRuler camera={camera} selectedRect={selectedRect} />
+              </div>
+            )}
+            <div style={{ display: 'flex' }}>
+              {showRulers && <VerticalRuler camera={camera} selectedRect={selectedRect} />}
+              {/* Stage uses standard positive scaleY — the y-axis is NOT flipped here.
+                  Elements receive Konva y-coords via worldToKonvaY() from coord-transform.ts.
+                  Pan, zoom, and pointer math all assume a normal Stage transform. */}
+              <Stage
+                width={STAGE_W}
+                height={STAGE_H}
+                style={{
+                  background: '#ffffff',
+                  boxShadow: `0 0 0 1px ${colors.border}`,
+                  display: 'block',
+                }}
+                ref={stageRef}
+                scaleX={camera.scale}
+                scaleY={camera.scale}
+                x={camera.x}
+                y={camera.y}
+                onWheel={handleWheel}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={() => setBodyHovered(false)}
+              >
+                <Layer>
+                  <DocumentLayer />
+                </Layer>
+                <Layer>
+                  <OverlayLayer
+                    onHandleHoverChange={(h) => { handleHoveredRef.current = h }}
+                    panModeRef={spaceDownRef}
+                    hovered={bodyHovered}
+                  />
+                </Layer>
+              </Stage>
+            </div>
+          </div>
         </CanvasErrorBoundary>
       </div>
     </div>

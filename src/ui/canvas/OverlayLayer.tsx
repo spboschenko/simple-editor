@@ -5,13 +5,18 @@ import { colors, semantic, component, fontSize as fontSizeTokens, fontFamily, ra
 import { rectAdapter } from '../../core/interaction/shape-adapters/rect-adapter'
 import { cursorForAffordance } from '../../core/interaction/cursor-map'
 import { AffordanceDef, AffordanceKind } from '../../core/interaction/affordance-types'
+import { screenToWorld, worldToKonvaY } from '../../core/coord-transform'
 
 interface OverlayLayerProps {
   /** Notify parent when pointer enters/leaves a handle, so CanvasRoot can suppress body hit-test cursor. */
   onHandleHoverChange?: (hovering: boolean) => void
+  /** When true (Space held), handle hover should not change the cursor. */
+  panModeRef?: React.RefObject<boolean>
+  /** True when pointer is hovering over the object body but it is not yet selected. */
+  hovered?: boolean
 }
 
-export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange }) => {
+export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange, panModeRef, hovered }) => {
   const { state, dispatch } = useEditor()
   const base = state.document.rect
   const r = state.interaction.previewRect ?? base
@@ -28,6 +33,8 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange 
 
   const moving = state.interaction.mode === 'moving'
 
+  // ── Size label ────────────────────────────────────────────────────────────
+  // Positioned using Konva y-coords (kyBottom/kyTop from worldToKonvaY).
   const labelText = `${r.width} × ${r.height}`
   const labelFontSize = fontSizeTokens.xs / scale
   const labelPadX = 6 / scale
@@ -35,7 +42,17 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange 
   const labelWidth = labelText.length * (labelFontSize * 0.55) + labelPadX * 2
   const labelHeight = labelFontSize + labelPadY * 2
   const labelX = r.x + r.width / 2 - labelWidth / 2
-  const labelY = r.y + r.height + 10 / scale
+
+  // Konva y-coordinates for the rect edges (Konva y increases downward).
+  // World bottom edge: r.y  → kyBottom = STAGE_H/scale - r.y
+  // World top edge:    r.y+r.height → kyTop = STAGE_H/scale - (r.y+r.height)
+  const kyBottom = worldToKonvaY(r.y, scale)
+  const kyTop    = worldToKonvaY(r.y + r.height, scale)
+
+  // Label sits below the visual bottom of the rect in screen space,
+  // i.e. at a larger Konva y than kyBottom.
+  const labelBgKy   = kyBottom + 10 / scale
+  const labelTextKy = labelBgKy + labelPadY
 
   /**
    * Starts a resize interaction session for the given affordance key.
@@ -54,10 +71,7 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange 
       const stageBounds = stage.container().getBoundingClientRect()
       const sx = ev.clientX - stageBounds.left
       const sy = ev.clientY - stageBounds.top
-      return {
-        x: (sx - capturedCamera.x) / capturedCamera.scale,
-        y: (sy - capturedCamera.y) / capturedCamera.scale,
-      }
+      return screenToWorld(sx, sy, capturedCamera)
     }
 
     // startWorld is captured but unused for resize (adapter uses absolute position).
@@ -85,11 +99,23 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange 
 
   return (
     <>
+      {/* Hover outline — shown when pointer is over an unselected, visible object. */}
+      {!selected && hovered && base.visible && (
+        <Line
+          points={[r.x, kyBottom, r.x + r.width, kyBottom, r.x + r.width, kyTop, r.x, kyTop, r.x, kyBottom]}
+          stroke={colors.accent}
+          strokeWidth={strokeW}
+          opacity={0.45}
+          listening={false}
+        />
+      )}
       {selected && !moving && (
         <>
-          {/* Selection outline — locked: solid amber; unlocked: dashed accent */}
+          {/* Selection outline — locked: solid amber; unlocked: dashed accent.
+              Points trace the bounding box in Konva coords (y-down):
+              bottom-left → bottom-right → top-right → top-left → close. */}
           <Line
-            points={[r.x, r.y, r.x + r.width, r.y, r.x + r.width, r.y + r.height, r.x, r.y + r.height, r.x, r.y]}
+            points={[r.x, kyBottom, r.x + r.width, kyBottom, r.x + r.width, kyTop, r.x, kyTop, r.x, kyBottom]}
             stroke={isLocked ? semantic.locked : colors.accent}
             strokeWidth={strokeW}
             dash={isLocked ? undefined : [dashLen, dashGap]}
@@ -100,17 +126,19 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange 
             <Circle
               key={aff.key}
               x={aff.worldX}
-              y={aff.worldY}
+              y={worldToKonvaY(aff.worldY, scale)}
               radius={handleR}
               fill={colors.panel}
               stroke={colors.accent}
               strokeWidth={strokeW}
               onMouseEnter={(e) => {
+                if (panModeRef?.current) return
                 const stage = (e.target as any).getStage()
                 if (stage) stage.container().style.cursor = cursorForAffordance[aff.kind as AffordanceKind]
                 onHandleHoverChange?.(true)
               }}
               onMouseLeave={(e) => {
+                if (panModeRef?.current) return
                 const stage = (e.target as any).getStage()
                 if (stage) stage.container().style.cursor = 'default'
                 onHandleHoverChange?.(false)
@@ -119,15 +147,16 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange 
             />
           ))}
 
-          {/* Size label below bounding box */}
+          {/* Size label below the visual bottom of the bounding box.
+              labelBgKy and labelTextKy are Konva y-coords (y-down, larger = lower on screen). */}
           <KRect
-            x={labelX} y={labelY}
+            x={labelX} y={labelBgKy}
             width={labelWidth} height={labelHeight}
             fill={isLocked ? semantic.lockedBg.replace('0.12', '0.8') : colors.panel}
             cornerRadius={radius.sm / scale}
           />
           <Text
-            x={labelX} y={labelY + labelPadY}
+            x={labelX} y={labelTextKy}
             width={labelWidth}
             text={labelText}
             fontSize={labelFontSize}

@@ -18,6 +18,8 @@ export type DocumentState = {
 export type UIState = {
   selectedId: ID | null
   activeTool: 'select' | 'rectangle'
+  /** Whether horizontal and vertical rulers are visible. Toggle with Shift+R or View → Rulers. */
+  showRulers: boolean
 }
 
 export type InteractionState = {

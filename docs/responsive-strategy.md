@@ -195,6 +195,19 @@ On smaller screens:
 
 less functionality is acceptable
 broken UX is not
+
+## Rulers in Responsive Context
+
+Rulers are part of the canvas chrome (see `docs/ui-composition.md`). They are not interactive and add minimal visual weight, but they do increase the rendered area by `RULER_SIZE` (24px) in each dimension.
+
+Responsive behavior for rulers:
+
+- **Desktop**: rulers visible by default (controlled by `ui.showRulers`)
+- **Compact/tablet**: rulers may be hidden by default or toggled via View menu / Shift+R
+- **Mobile**: rulers are hidden; the canvas fills the full viewport and rulers would consume disproportionate space
+
+Future compact/mobile layouts should initialize `showRulers: false` or allow the layout to override the flag. The `showRulers` flag lives in UI state and controls rendering only — it does not affect document coordinates or interaction semantics.
+
 🚀 Теперь промпт для Copilot
 
 Вот что ему дать после создания файла 👇

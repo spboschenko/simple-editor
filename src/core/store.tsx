@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useReducer } from 'react'
 import { CameraState, DocumentState, EditorState, Rect, UIState, InteractionState } from './types'
+import { fitCamera } from './coord-transform'
 
 type Action =
   | { type: 'select'; id: string | null }
   | { type: 'setActiveTool'; tool: 'select'|'rectangle' }
+  | { type: 'toggleRulers' }
   | { type: 'movePreview'; rect: Rect }
   | { type: 'commitMove'; rect: Rect }
   | { type: 'resizePreview'; rect: Rect }
@@ -34,11 +36,14 @@ const initialRect = {
 
 const initialDocument: DocumentState = { rect: initialRect }
 
-const initialUI: UIState = { selectedId: null, activeTool: 'select' }
+const initialUI: UIState = { selectedId: null, activeTool: 'select', showRulers: true }
 
 const initialInteraction: InteractionState = { previewRect: null, mode: 'idle' }
 
-export const initialCamera: CameraState = { x: 0, y: 0, scale: 1 }
+// Centre on the initial rect using the y-up fitCamera formula.
+export const initialCamera: CameraState = fitCamera({
+  x: 120, y: 80, width: 240, height: 160,
+})
 
 // Full internal state that includes undo/redo history.
 // History is an implementation detail of the store — consumers only see EditorState.
@@ -85,6 +90,8 @@ function reducer(state: EditorStateWithHistory, action: Action): EditorStateWith
       const newHistory: History = { past: [...history.past, state.document], future: [] }
       return { document: newDoc, ui: state.ui, interaction: state.interaction, camera: state.camera, history: newHistory }
     }
+    case 'toggleRulers':
+      return { ...state, ui: { ...state.ui, showRulers: !state.ui.showRulers } }
     case 'resetSelection':
       return { ...state, ui: { ...state.ui, selectedId: null } }
     // Lock and visibility are instant UI-level toggles — not recorded in undo history.

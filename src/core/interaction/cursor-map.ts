@@ -5,6 +5,10 @@ import { AffordanceKind } from './affordance-types'
  *
  * Cursor is derived from affordance kind — NOT from object type.
  * This is the single source of cursor truth for the entire editor.
+ *
+ * Note: `body` → 'move' is only applied when the object is **selected**.
+ * Unselected objects show `default` cursor with a hover outline instead.
+ * See CanvasRoot handleMouseMove for the selection-aware guard.
  */
 export type CursorSource = AffordanceKind | 'none' | 'pan' | 'panning'
 
