@@ -15,7 +15,7 @@ import { GlobalToolbar } from '../../ui/toolbar/GlobalToolbar'
 import { StructurePanel } from '../../ui/panels/StructurePanel'
 import { SpecPanel } from '../../ui/panels/SpecPanel'
 import { Inspector } from '../../ui/inspector/Inspector'
-import { CanvasRoot } from '../../ui/canvas/CanvasRoot'
+import { CanvasShell } from '../../ui/canvas/CanvasShell'
 import { PanelDrawer } from '../../ui/panels/PanelDrawer'
 import { ToolButton } from '../../shared/ui'
 import { spacing } from '../../shared/tokens/design-tokens'
@@ -49,7 +49,7 @@ export const CompactLayout: React.FC = () => {
 
       {/* Canvas always fills the body */}
       <div className="compact-canvas">
-        <CanvasRoot />
+        <CanvasShell />
       </div>
 
       {/* Drawers — rendered on top of canvas */}

@@ -10,7 +10,7 @@ import { colors } from '../../shared/tokens/design-tokens'
 import { rectAdapter } from '../../core/interaction/shape-adapters/rect-adapter'
 import { cursorForAffordance, CursorSource } from '../../core/interaction/cursor-map'
 import {
-  STAGE_W, STAGE_H, RULER_SIZE,
+  STAGE_W, STAGE_H, RULER_SIZE, setStageSize,
   screenToWorld, fitCamera, zoomToward
 } from '../../core/coord-transform'
 import { HorizontalRuler } from './rulers/HorizontalRuler'
@@ -22,6 +22,23 @@ export const CanvasRoot: React.FC = () => {
   const { state, dispatch } = useEditor()
   const stageRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [measured, setMeasured] = useState(false)
+
+  // Measure container and update stage size used by coordinate transforms.
+  useEffect(() => {
+    const measure = () => {
+      const el = containerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const stageW = Math.max(0, rect.width - RULER_SIZE)
+      const stageH = Math.max(0, rect.height - RULER_SIZE)
+      setStageSize(stageW, stageH)
+      setMeasured(true)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
 
   // Move drag refs
   const [isDragging, setIsDragging] = useState(false)
@@ -225,11 +242,6 @@ export const CanvasRoot: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div className="canvas-area" ref={containerRef}>
-        <div className="canvas-toolbar">
-          <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: fitCamera(state.document.rect) })}>Fit</ToolButton>
-          <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: { ...camera, x: 0, y: 0, scale: 1 } })}>1:1</ToolButton>
-          <ZoomLabel scale={camera.scale} />
-        </div>
         <CanvasErrorBoundary>
           {/* ruler + stage block — centered in canvas-area */}
           <div style={{ display: 'inline-block', lineHeight: 0 }}>

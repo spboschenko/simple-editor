@@ -21,8 +21,9 @@
  * All world ↔ Konva and world ↔ screen conversions go through this file.
  */
 
-export const STAGE_W = 800
-export const STAGE_H = 480
+// Stage dimensions are mutable so the UI can resize the canvas area at runtime.
+export let STAGE_W = 800
+export let STAGE_H = 480
 export const RULER_SIZE = 24    // px — width of vertical ruler / height of horizontal ruler
 
 export const MIN_SCALE = 0.05
@@ -117,4 +118,12 @@ export function zoomToward(
     x: focalX - (focalX - camera.x) * ratio,
     y: focalY - STAGE_H + (STAGE_H + camera.y - focalY) * ratio,
   }
+}
+
+/**
+ * Update the stage size used by coordinate transforms (call when container resizes).
+ */
+export function setStageSize(w: number, h: number) {
+  STAGE_W = Math.max(0, Math.round(w))
+  STAGE_H = Math.max(0, Math.round(h))
 }

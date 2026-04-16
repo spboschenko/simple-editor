@@ -7,6 +7,7 @@
  */
 import React from 'react'
 import { spacing, fontSize, colors } from './tokens/design-tokens'
+import { useScrub } from './hooks/useScrub'
 
 // ── PanelTitle ───────────────────────────────────────────────────────────────
 
@@ -63,14 +64,24 @@ interface FieldProps {
   label: string
   value: string | number
   disabled?: boolean
+  /** When true the input border turns red to signal an invalid expression. */
+  invalid?: boolean
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
 }
 
-export const Field: React.FC<FieldProps> = ({ label, value, disabled, onChange, onKeyDown }) => (
+export const Field: React.FC<FieldProps> = ({ label, value, disabled, invalid, onChange, onKeyDown, onBlur }) => (
   <div className="inspector-field">
     <label>{label}</label>
-    <input value={value} disabled={disabled} onChange={onChange} onKeyDown={onKeyDown} />
+    <input
+      value={value}
+      disabled={disabled}
+      data-invalid={invalid ? 'true' : undefined}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      onBlur={onBlur}
+    />
   </div>
 )
 
@@ -85,3 +96,55 @@ export const ZoomLabel: React.FC<{ scale: number }> = ({ scale }) => (
     {Math.round(scale * 100)}%
   </span>
 )
+
+// ── InspectorField ───────────────────────────────────────────────────────────
+// Figma-style inline label + input. The label becomes an ew-resize scrub handle
+// when onScrub is provided, allowing values to be changed by dragging.
+
+interface InspectorFieldProps {
+  label: string
+  value: string | number
+  disabled?: boolean
+  invalid?: boolean
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
+  /** Called once at drag start — use to snapshot history. */
+  onScrubStart?: () => void
+  /** Called on each horizontal pixel delta during drag. */
+  onScrub?: (delta: number) => void
+  /** Called once on drag end. */
+  onScrubEnd?: () => void
+}
+
+export const InspectorField: React.FC<InspectorFieldProps> = ({
+  label, value, disabled, invalid,
+  onChange, onKeyDown, onBlur,
+  onScrubStart, onScrub, onScrubEnd,
+}) => {
+  const scrubDown = useScrub({
+    onScrubStart,
+    onScrub: onScrub ?? (() => {}),
+    onScrubEnd,
+  })
+
+  return (
+    <div className="figma-field" data-invalid={invalid ? 'true' : undefined}>
+      <span
+        className="figma-field__label"
+        data-scrub={!disabled && onScrub ? 'true' : undefined}
+        onMouseDown={!disabled && onScrub ? scrubDown : undefined}
+      >
+        {label}
+      </span>
+      <input
+        className="figma-field__input"
+        value={value}
+        disabled={disabled}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
+      />
+    </div>
+  )
+}

@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useReducer } from 'react'
+import React, { createContext, useContext, useReducer, useMemo } from 'react'
 import { CameraState, DocumentState, EditorState, Rect, UIState, InteractionState } from './types'
+import type { ProjectPayload } from './project-types'
 import { fitCamera } from './coord-transform'
+
+const HISTORY_LIMIT = 50
 
 type Action =
   | { type: 'select'; id: string | null }
@@ -17,6 +20,8 @@ type Action =
   | { type: 'setCamera'; camera: CameraState }
   | { type: 'undo' }
   | { type: 'redo' }
+  | { type: 'scrubProps'; rect: Rect }
+  | { type: 'snapshotHistory' }
 
 type History = {
   past: DocumentState[]
@@ -82,12 +87,12 @@ function reducer(state: EditorStateWithHistory, action: Action): EditorStateWith
     case 'commitMove':
     case 'commitResize': {
       const newDoc: DocumentState = { rect: action.rect }
-      const newHistory: History = { past: [...history.past, state.document], future: [] }
+      const newHistory: History = { past: [...history.past, state.document].slice(-HISTORY_LIMIT), future: [] }
       return { document: newDoc, ui: state.ui, interaction: { previewRect: null, mode: 'idle' }, camera: state.camera, history: newHistory }
     }
     case 'updateProps': {
       const newDoc: DocumentState = { rect: action.rect }
-      const newHistory: History = { past: [...history.past, state.document], future: [] }
+      const newHistory: History = { past: [...history.past, state.document].slice(-HISTORY_LIMIT), future: [] }
       return { document: newDoc, ui: state.ui, interaction: state.interaction, camera: state.camera, history: newHistory }
     }
     case 'toggleRulers':
@@ -107,6 +112,15 @@ function reducer(state: EditorStateWithHistory, action: Action): EditorStateWith
     }
     case 'setCamera':
       return { ...state, camera: action.camera }
+    case 'scrubProps':
+      return { ...state, document: { rect: action.rect } }
+    case 'snapshotHistory': {
+      const newHistory: History = {
+        past: [...history.past, state.document].slice(-HISTORY_LIMIT),
+        future: [],
+      }
+      return { ...state, history: newHistory }
+    }
     case 'undo': {
       if (history.past.length === 0) return state
       const previous = history.past[history.past.length - 1]
@@ -124,8 +138,21 @@ function reducer(state: EditorStateWithHistory, action: Action): EditorStateWith
   }
 }
 
-export const EditorProvider: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
-  const [fullState, dispatch] = useReducer(reducer, initialStateWithHistory)
+export const EditorProvider: React.FC<{ payload?: ProjectPayload; children?: React.ReactNode }> = ({ payload, children }) => {
+  const init = useMemo((): EditorStateWithHistory => {
+    if (payload) {
+      return {
+        document: payload.document,
+        ui: initialUI,
+        interaction: initialInteraction,
+        camera: payload.camera,
+        history: { past: [], future: [] },
+      }
+    }
+    return initialStateWithHistory
+  }, []) // intentionally empty — payload is only read on first mount
+
+  const [fullState, dispatch] = useReducer(reducer, init)
 
   // Expose only EditorState to consumers — history is an internal concern
   const store: Store = { state: fullState, dispatch }

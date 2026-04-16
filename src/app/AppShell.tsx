@@ -10,14 +10,35 @@
  * compact  768–1199px →  CompactLayout  (canvas + panel drawers)
  * mobile   < 768px    →  MobileLayout   (viewer-first + bottom sheets)
  */
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useBreakpoint } from '../shared/hooks/useBreakpoint'
+import { useUndoRedo } from '../shared/hooks/useUndoRedo'
+import { useEditor } from '../core/store'
 import { DesktopLayout } from './layout/DesktopLayout'
 import { CompactLayout } from './layout/CompactLayout'
 import { MobileLayout } from './layout/MobileLayout'
+import type { ProjectPayload } from '../core/project-types'
 
-export const AppShell: React.FC = () => {
+interface AppShellProps {
+  /** Mutable ref that App.tsx reads when returning to dashboard to auto-save. */
+  editorStateRef?: React.MutableRefObject<(() => ProjectPayload) | null>
+}
+
+export const AppShell: React.FC<AppShellProps> = ({ editorStateRef }) => {
   const mode = useBreakpoint()
+  useUndoRedo()
+
+  const { state } = useEditor()
+
+  // Keep the ref pointing to a function that returns the current payload.
+  useEffect(() => {
+    if (editorStateRef) {
+      editorStateRef.current = () => ({
+        document: state.document,
+        camera: state.camera,
+      })
+    }
+  })
 
   if (mode === 'mobile')  return <MobileLayout />
   if (mode === 'compact') return <CompactLayout />

@@ -16,7 +16,7 @@ import React, { useState } from 'react'
 import { StructurePanel } from '../../ui/panels/StructurePanel'
 import { SpecPanel } from '../../ui/panels/SpecPanel'
 import { Inspector } from '../../ui/inspector/Inspector'
-import { CanvasRoot } from '../../ui/canvas/CanvasRoot'
+import { CanvasShell } from '../../ui/canvas/CanvasShell'
 import { PanelDrawer } from '../../ui/panels/PanelDrawer'
 import { spacing } from '../../shared/tokens/design-tokens'
 
@@ -32,7 +32,7 @@ export const MobileLayout: React.FC = () => {
     <div className="app-shell app-shell--mobile">
       {/* Canvas fills screen */}
       <div className="mobile-canvas">
-        <CanvasRoot />
+        <CanvasShell />
       </div>
 
       {/* Bottom action bar — minimal, touch-friendly */}

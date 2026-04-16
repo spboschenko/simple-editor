@@ -18,8 +18,7 @@ import { GlobalToolbar } from '../../ui/toolbar/GlobalToolbar'
 import { StructurePanel } from '../../ui/panels/StructurePanel'
 import { SpecPanel } from '../../ui/panels/SpecPanel'
 import { Inspector } from '../../ui/inspector/Inspector'
-import { CanvasRoot } from '../../ui/canvas/CanvasRoot'
-import { spacing } from '../../shared/tokens/design-tokens'
+import { CanvasShell } from '../../ui/canvas/CanvasShell'
 
 export const DesktopLayout: React.FC = () => (
   <div className="app-shell app-shell--desktop">
@@ -27,15 +26,17 @@ export const DesktopLayout: React.FC = () => (
       <GlobalToolbar />
     </div>
 
-    <div className="left">
-      <StructurePanel />
-      <div style={{ marginTop: spacing[4] }}>
+    <div className="left left--flex">
+      <div className="left__layers">
+        <StructurePanel />
+      </div>
+      <div className="left__spec">
         <SpecPanel />
       </div>
     </div>
 
     <div className="center">
-      <CanvasRoot />
+      <CanvasShell />
     </div>
 
     <div className="right">

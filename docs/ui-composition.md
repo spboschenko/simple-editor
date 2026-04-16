@@ -6,6 +6,11 @@ Top-level areas:
 - Left Panel: Structure (document navigation) and Specification (derived read-only metrics). See `src/ui/panels/LeftPanel.tsx`.
 - Center Canvas: Canvas toolbar, Document Layer, Overlay Layer, Rulers. Document vs Overlay are distinct concerns.
 - Right Inspector: precise property editing that commits via the shared command layer.
+  Numeric fields (`x`, `y`, `width`, `height`) accept plain numbers or math expressions
+  (`+`, `-`, `*`, `/`, `^`, parentheses). Values are evaluated on Enter / blur / Commit button,
+  rounded to integers, and validated against per-field constraints before dispatch.
+  Invalid expressions are not written to state; the field highlights red instead.
+  See `docs/input-rules.md` for the full numeric input contract.
 
 Each block has a single responsibility and communicates via the shared store.
 
