@@ -11,9 +11,36 @@ export type Rect = {
   visible: boolean
 }
 
-export type DocumentState = {
-  rect: Rect
+/**
+ * DocumentState — the persisted, version-controlled document.
+ *
+ * TData    — domain-specific input data (opaque to the UI canvas layer).
+ * TComputed — result produced by DomainContract.process(geometry, data).
+ *             Stored in state and recomputed by the store's event bridge
+ *             after every geometry change.
+ */
+export interface DocumentState<TData = unknown, TComputed = unknown> {
+  /** Identifies the domain that owns this document (see domain-contract.ts). */
+  domainType: string
+  /**
+   * Pure spatial / visual properties — the only data the canvas layer touches.
+   * Includes position, size, appearance, and visual modifiers (locked, visible).
+   */
+  geometry: Rect
+  /**
+   * Domain-specific raw data. Opaque to the UI; interpreted exclusively by
+   * the registered DomainContract. Never read directly by canvas components.
+   */
+  data: TData
+  /**
+   * Output of DomainContract.process(geometry, data). Recomputed automatically
+   * by the event bridge on every geometry change. Read-only from the UI.
+   */
+  computed: TComputed
 }
+
+/** Convenience alias for untyped use (store internals, storage layer). */
+export type AnyDocumentState = DocumentState<unknown, unknown>
 
 export type UIState = {
   selectedId: ID | null
@@ -38,7 +65,7 @@ export type CameraState = {
 }
 
 export type EditorState = {
-  document: DocumentState
+  document: AnyDocumentState
   ui: UIState
   interaction: InteractionState
   camera: CameraState

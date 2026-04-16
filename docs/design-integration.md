@@ -1,3 +1,5 @@
+<!-- entities: design-tokens.ts, styles.css, InspectorField, Field, ToolButton, IconButton, PanelTitle, toolbar-tool-btn, toolbar-domain-tools, DomainUIProvider, icons.tsx -->
+
 # Design Integration Guide
 
 ## Where tokens live
@@ -62,7 +64,8 @@ All common elements are in `src/shared/ui.tsx`. **Always use these — never wri
 | `<PanelTitle>` | `.panel-title` | Panel section headers |
 | `<ToolButton active={…}>` | `.tool-btn` | Toolbar / inspector action buttons |
 | `<IconButton>` | `.icon-btn` | Borderless icon actions (toggle, close…) |
-| `<Field label value onChange>` | `.inspector-field` | Inspector property rows |
+| `<InspectorField label value onChange onBlur onKeyDown>` | `.figma-field` | Numeric inspector fields (geometry + domain). Supports scrub via `onScrub` prop. **Use this, not `<Field>`, for inspector inputs.** |
+| `<Field label value onChange>` | `.inspector-field` | Legacy simple label+input pair for non-scrub contexts. Prefer `<InspectorField>` for all inspector use. |
 | `<ToolbarSeparator>` | — (inline) | Visual group separator in toolbars |
 | `<ZoomLabel scale={…}>` | `.canvas-toolbar-zoom` | Read-only zoom % in canvas toolbar |
 
@@ -78,7 +81,7 @@ import { IconLockClosed } from '../../shared/icons'
 <IconLockClosed size={12} /> // override when used inline in text
 ```
 
-**Do not create one-off SVGs in feature files.** Add new icons to `shared/icons.tsx`.
+**Do not create one-off SVGs in feature files.** Add new icons to `shared/icons.tsx`. Domain toolbar tool icons are an exception — they may be defined inline inside the `toolbarTools` array of a `DomainModule` because they are co-located with the domain logic, but they must still use `currentColor` stroke and the `16×16` viewBox convention.
 
 ---
 
@@ -98,6 +101,19 @@ const handleR = (component.overlayHandleSize / 2) / scale  // 4px radius on scre
 ## Rules that must not be broken
 
 1. **No magic numbers.** Every px value in JSX or CSS must come from a token or a CSS var.
+
+---
+
+## Domain toolbar tool classes
+
+When `DomainUIProvider` renders domain-injected toolbar buttons it uses two CSS classes defined in `styles.css`:
+
+| Class | Role |
+|---|---|
+| `.toolbar-domain-tools` | Flex container holding the injected buttons strip; separated from the menu-bar by a `1px` border |
+| `.toolbar-tool-btn` | Individual domain action button; `28×28px`, transparent background, accent border on `--active` variant |
+
+These classes must not be used outside `GlobalToolbar.tsx`.
 2. **No new hex literals** in component files — all colors come from `colors` or `semantic`.
 3. **No new icon SVGs** in feature files — add to `shared/icons.tsx`.
 4. **No raw `<button className="tool-btn">`** — use `<ToolButton>`.

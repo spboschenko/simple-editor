@@ -1,11 +1,21 @@
+<!-- entities: DocumentLayer, DomainOverlayLayer, OverlayLayer, Rect, worldToKonvaY, coord-transform, renderOverlay, HorizontalRuler, VerticalRuler, camera, scale -->
+
 # Rendering Model
 
-There are two rendering concerns:
+Three rendering layers are stacked inside the Konva Stage in this order:
 
-- Document Layer: renders the document object(s) — currently the rectangle. Implemented in `src/ui/canvas/DocumentLayer.tsx`.
-- Overlay Layer: renders editor overlays like selection outline and handles. Implemented in `src/ui/canvas/OverlayLayer.tsx`.
+1. **DocumentLayer** (`src/ui/canvas/DocumentLayer.tsx`) — renders document geometry (the base `Rect`). The only layer that touches `document.geometry` directly.
+2. **DomainOverlayLayer** — renders domain-specific decorations by calling `domain.renderOverlay(geometry, computed, scale)`. Only shown when the active domain returns a non-null element. Must use react-konva primitives only; all y-coordinates must pass through `worldToKonvaY()`; screen-constant sizes must be divided by `camera.scale`.
+3. **OverlayLayer** (`src/ui/canvas/OverlayLayer.tsx`) — renders editor UI: selection outline, resize handles, hover effects. Always on top.
 
-Overlay visuals are separate from document geometry and are screen-space aware (handles have fixed radius irrespective of document coordinates).
+**Layer ownership rules:**
+- Selection handles and affordance visuals belong exclusively to OverlayLayer.
+- Domain decorations (grid cells, opening markers, etc.) belong exclusively to DomainOverlayLayer.
+- DocumentLayer must not render any overlay-style chrome.
+
+## Legacy two-layer note
+
+Early versions of this document described only two layers. Three are now the canonical model.
 
 ## Coordinate System
 

@@ -7,14 +7,15 @@
  */
 import React, { useState } from 'react'
 import { useEditor } from '../../core/store'
+import { getDomain } from '../../core/domain-contract'
 
 export const SpecPanel: React.FC = () => {
   const { state } = useEditor()
   const [expanded, setExpanded] = useState(true)
   const selected = state.ui.selectedId
-  const r = state.document.rect
+  const r = state.document.geometry
 
-  const rows = selected
+  const geoRows = selected
     ? [
         { label: 'X',      value: `${r.x} px` },
         { label: 'Y',      value: `${r.y} px` },
@@ -24,6 +25,11 @@ export const SpecPanel: React.FC = () => {
         { label: 'Fill',   value: r.fill },
         { label: 'Locked', value: r.locked ? 'Yes' : 'No' },
       ]
+    : null
+
+  const domain = getDomain(state.document.domainType)
+  const domainRows = selected && domain?.specRows
+    ? domain.specRows(state.document.computed)
     : null
 
   return (
@@ -38,13 +44,24 @@ export const SpecPanel: React.FC = () => {
       </button>
       {expanded && (
         <div className="spec-panel__body">
-          {rows ? rows.map(({ label, value }) => (
+          {geoRows ? geoRows.map(({ label, value }) => (
             <div key={label} className="spec-row">
               <span className="spec-row__label">{label}</span>
               <span className="spec-row__value">{value}</span>
             </div>
           )) : (
             <div className="spec-row spec-row--empty">No object selected</div>
+          )}
+          {domainRows && domainRows.length > 0 && (
+            <>
+              <div className="spec-row spec-row--section">Domain</div>
+              {domainRows.map(({ label, value }) => (
+                <div key={label} className="spec-row">
+                  <span className="spec-row__label">{label}</span>
+                  <span className="spec-row__value">{value}</span>
+                </div>
+              ))}
+            </>
           )}
         </div>
       )}

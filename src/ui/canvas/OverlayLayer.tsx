@@ -18,7 +18,7 @@ interface OverlayLayerProps {
 
 export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange, panModeRef, hovered }) => {
   const { state, dispatch } = useEditor()
-  const base = state.document.rect
+  const base = state.document.geometry
   const r = state.interaction.previewRect ?? base
   const selected = state.ui.selectedId === base.id
   const scale = state.camera.scale
@@ -63,7 +63,7 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ onHandleHoverChange,
   const startInteraction = (affordanceKey: string, e: any) => {
     e.cancelBubble = true
     const stage = e.target.getStage()
-    const baseRect = { ...state.document.rect }
+    const baseRect = { ...state.document.geometry }
     // Capture camera once so all world conversions during this session are consistent.
     const capturedCamera = { ...state.camera }
 

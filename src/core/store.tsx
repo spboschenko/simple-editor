@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useReducer, useMemo } from 'react'
-import { CameraState, DocumentState, EditorState, Rect, UIState, InteractionState } from './types'
+import { AnyDocumentState, CameraState, EditorState, Rect, UIState, InteractionState } from './types'
 import type { ProjectPayload } from './project-types'
 import { fitCamera } from './coord-transform'
+import { getDomain, nullDomain } from './domain-contract'
 
 const HISTORY_LIMIT = 50
 
@@ -22,10 +23,13 @@ type Action =
   | { type: 'redo' }
   | { type: 'scrubProps'; rect: Rect }
   | { type: 'snapshotHistory' }
+  | { type: 'changeDomain'; domainType: string }
+  | { type: 'updateDomainData'; data: unknown }
+  | { type: 'toggleChildLock'; childId: string }
 
 type History = {
-  past: DocumentState[]
-  future: DocumentState[]
+  past: AnyDocumentState[]
+  future: AnyDocumentState[]
 }
 
 const initialRect = {
@@ -39,7 +43,35 @@ const initialRect = {
   visible: true,
 }
 
-const initialDocument: DocumentState = { rect: initialRect }
+/**
+ * Event bridge helper — creates a new DocumentState with updated geometry and
+ * recomputed domain output. Called after every geometry-mutating action.
+ */
+function applyDomain(doc: AnyDocumentState, geometry: Rect): AnyDocumentState {
+  const domain = getDomain(doc.domainType)
+  return {
+    ...doc,
+    geometry,
+    computed: domain ? domain.process(geometry, doc.data) : doc.computed,
+  }
+}
+
+/**
+ * Returns true when the document is locked for geometry changes.
+ * Combines the base-rect locked flag with domain-level child locks.
+ */
+function isGeoLocked(doc: AnyDocumentState): boolean {
+  if (doc.geometry.locked) return true
+  const domain = getDomain(doc.domainType)
+  return domain?.isGeometryLocked?.(doc.data) ?? false
+}
+
+const initialDocument: AnyDocumentState = {
+  domainType: nullDomain.type,
+  geometry: initialRect,
+  data: nullDomain.defaults,
+  computed: nullDomain.process(initialRect, nullDomain.defaults),
+}
 
 const initialUI: UIState = { selectedId: null, activeTool: 'select', showRulers: true }
 
@@ -86,12 +118,14 @@ function reducer(state: EditorStateWithHistory, action: Action): EditorStateWith
       return { ...state, interaction: { ...state.interaction, previewRect: action.rect, mode: 'resizing' } }
     case 'commitMove':
     case 'commitResize': {
-      const newDoc: DocumentState = { rect: action.rect }
+      if (isGeoLocked(state.document)) return state
+      const newDoc = applyDomain(state.document, action.rect)
       const newHistory: History = { past: [...history.past, state.document].slice(-HISTORY_LIMIT), future: [] }
       return { document: newDoc, ui: state.ui, interaction: { previewRect: null, mode: 'idle' }, camera: state.camera, history: newHistory }
     }
     case 'updateProps': {
-      const newDoc: DocumentState = { rect: action.rect }
+      if (isGeoLocked(state.document)) return state
+      const newDoc = applyDomain(state.document, action.rect)
       const newHistory: History = { past: [...history.past, state.document].slice(-HISTORY_LIMIT), future: [] }
       return { document: newDoc, ui: state.ui, interaction: state.interaction, camera: state.camera, history: newHistory }
     }
@@ -101,11 +135,11 @@ function reducer(state: EditorStateWithHistory, action: Action): EditorStateWith
       return { ...state, ui: { ...state.ui, selectedId: null } }
     // Lock and visibility are instant UI-level toggles — not recorded in undo history.
     case 'setLocked':
-      return { ...state, document: { rect: { ...state.document.rect, locked: action.locked } } }
+      return { ...state, document: applyDomain(state.document, { ...state.document.geometry, locked: action.locked }) }
     case 'setVisible': {
-      const next = { ...state, document: { rect: { ...state.document.rect, visible: action.visible } } }
+      const next = { ...state, document: applyDomain(state.document, { ...state.document.geometry, visible: action.visible }) }
       // If hiding a selected object, deselect it
-      if (!action.visible && state.ui.selectedId === state.document.rect.id) {
+      if (!action.visible && state.ui.selectedId === state.document.geometry.id) {
         return { ...next, ui: { ...next.ui, selectedId: null } }
       }
       return next
@@ -113,7 +147,8 @@ function reducer(state: EditorStateWithHistory, action: Action): EditorStateWith
     case 'setCamera':
       return { ...state, camera: action.camera }
     case 'scrubProps':
-      return { ...state, document: { rect: action.rect } }
+      if (isGeoLocked(state.document)) return state
+      return { ...state, document: applyDomain(state.document, action.rect) }
     case 'snapshotHistory': {
       const newHistory: History = {
         past: [...history.past, state.document].slice(-HISTORY_LIMIT),
@@ -134,6 +169,41 @@ function reducer(state: EditorStateWithHistory, action: Action): EditorStateWith
       const newFuture = history.future.slice(1)
       const newPast = [...history.past, state.document]
       return { document: next, ui: state.ui, interaction: { previewRect: null, mode: 'idle' }, camera: state.camera, history: { past: newPast, future: newFuture } }
+    }
+    case 'changeDomain': {
+      const newDomain = getDomain(action.domainType)
+      if (!newDomain) return state
+      const geometry = state.document.geometry
+      const newDoc: AnyDocumentState = {
+        ...state.document,
+        domainType: action.domainType,
+        data: newDomain.defaults,
+        computed: newDomain.process(geometry, newDomain.defaults),
+      }
+      const newHistory: History = { past: [...history.past, state.document].slice(-HISTORY_LIMIT), future: [] }
+      return { ...state, document: newDoc, history: newHistory }
+    }
+    case 'updateDomainData': {
+      const domain = getDomain(state.document.domainType)
+      if (!domain) return state
+      const newDoc: AnyDocumentState = {
+        ...state.document,
+        data: action.data,
+        computed: domain.process(state.document.geometry, action.data),
+      }
+      const newHistory: History = { past: [...history.past, state.document].slice(-HISTORY_LIMIT), future: [] }
+      return { ...state, document: newDoc, history: newHistory }
+    }
+    case 'toggleChildLock': {
+      const domain = getDomain(state.document.domainType)
+      if (!domain?.toggleChildLock) return state
+      const newData = domain.toggleChildLock(action.childId, state.document.data)
+      const newDoc: AnyDocumentState = {
+        ...state.document,
+        data: newData,
+        computed: domain.process(state.document.geometry, newData),
+      }
+      return { ...state, document: newDoc }
     }
   }
 }

@@ -9,7 +9,7 @@ import { spacing, colors } from '../../shared/tokens/design-tokens'
 const StructureSection: React.FC = () => {
   const { state, dispatch } = useEditor()
   const selected = state.ui.selectedId
-  const rect = state.document.rect
+  const rect = state.document.geometry
   const [hovered, setHovered] = useState(false)
 
   const isRectActive = selected === 'rect-1' || hovered
@@ -96,7 +96,7 @@ const StructureSection: React.FC = () => {
 
 const SpecSection: React.FC = () => {
   const { state } = useEditor()
-  const r = state.document.rect
+  const r = state.document.geometry
   const area = Math.round(r.width * r.height)
   return (
     <div style={{ marginTop: spacing[4] }}>

@@ -1,3 +1,5 @@
+<!-- entities: architecture.md, state-model.md, interaction-model.md, rendering-model.md, ui-composition.md, design-system.md, responsive-strategy.md, domain-protocol.md, DomainModule, DomainContract, DomainUIProvider -->
+
 # System Rules — Mini Editor Architecture Lab
 
 ## Purpose
@@ -99,6 +101,15 @@ Defines:
 - breakpoint strategy
 - capability differences by device size
 - panel transformation rules
+
+### domain-protocol.md
+Defines:
+- `DomainContract` and `DomainModule` interface specifications
+- field-by-field contract rules (`process`, `renderOverlay`, `InspectorSection`, `getChildren`, `isGeometryLocked`, `toggleChildLock`, `toolbarTools`, `exportTemplates`, `onToolActivate`)
+- domain validation rules
+- export template contract
+- `TypedDocumentState` utility
+- registration and lookup contract (`registerDomain`, `getDomain`, `listDomains`)
 
 ---
 

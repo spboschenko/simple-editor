@@ -14,8 +14,9 @@
  *   createDefault(name)  → Project                 (factory with default payload)
  */
 import type { Project, ProjectMeta, ProjectPayload } from './project-types'
-import type { DocumentState, CameraState } from './types'
+import type { AnyDocumentState, CameraState, Rect } from './types'
 import { fitCamera } from './coord-transform'
+import { nullDomain, getDomain } from './domain-contract'
 
 const STORAGE_KEY = 'projects'
 
@@ -42,7 +43,7 @@ function generateId(): string {
 // ── Default payload factory ───────────────────────────────────────────────────
 
 function defaultPayload(): ProjectPayload {
-  const rect = {
+  const geometry: Rect = {
     id: 'rect-1',
     x: 120,
     y: 80,
@@ -52,8 +53,13 @@ function defaultPayload(): ProjectPayload {
     locked: false,
     visible: true,
   }
-  const document: DocumentState = { rect }
-  const camera: CameraState = fitCamera(rect)
+  const document: AnyDocumentState = {
+    domainType: nullDomain.type,
+    geometry,
+    data: nullDomain.defaults,
+    computed: nullDomain.process(geometry, nullDomain.defaults),
+  }
+  const camera: CameraState = fitCamera(geometry)
   return { document, camera }
 }
 
@@ -62,7 +68,13 @@ function defaultPayload(): ProjectPayload {
 /** Return lightweight metadata for every stored project (sorted newest-first). */
 export function listMeta(): ProjectMeta[] {
   return readAll()
-    .map(({ id, name, createdAt, updatedAt }) => ({ id, name, createdAt, updatedAt }))
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      domainType: p.payload.document.domainType,
+    }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
@@ -99,4 +111,67 @@ export function createDefault(name: string): Project {
     updatedAt: now,
     payload: defaultPayload(),
   }
+}
+
+/**
+ * Factory: create a fresh project whose document is initialised from a
+ * registered domain's defaults rather than the hardcoded rect geometry.
+ * If the domainType is not registered, falls back to createDefault().
+ */
+export function createFromDomain(name: string, domainType: string): Project {
+  const domain = getDomain(domainType)
+  if (!domain) return createDefault(name)
+
+  const dg = domain.defaultGeometry ?? {}
+  const geometry: Rect = {
+    id: 'rect-1',
+    x:      dg.x      ?? 120,
+    y:      dg.y      ?? 80,
+    width:  dg.width  ?? 240,
+    height: dg.height ?? 160,
+    fill:   dg.fill   ?? '#60a5fa',
+    locked: dg.locked ?? false,
+    visible: dg.visible ?? true,
+  }
+  const document: AnyDocumentState = {
+    domainType,
+    geometry,
+    data: domain.defaults,
+    computed: domain.process(geometry, domain.defaults),
+  }
+  const now = new Date().toISOString()
+  return {
+    id: generateId(),
+    name,
+    createdAt: now,
+    updatedAt: now,
+    payload: { document, camera: fitCamera(geometry) },
+  }
+}
+
+/** Rename a project. No-op if the project does not exist. */
+export function rename(id: string, newName: string): void {
+  const all = readAll()
+  const idx = all.findIndex(p => p.id === id)
+  if (idx < 0) return
+  all[idx] = { ...all[idx], name: newName, updatedAt: new Date().toISOString() }
+  writeAll(all)
+}
+
+/**
+ * Duplicate a project. Returns the new copy or null if the source is not found.
+ * The copy gets a new id, " (copy)" appended to the name, and fresh timestamps.
+ */
+export function duplicate(id: string): Project | null {
+  const source = load(id)
+  if (!source) return null
+  const copy: Project = {
+    ...JSON.parse(JSON.stringify(source)) as Project, // deep clone
+    id: generateId(),
+    name: `${source.name} (copy)`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+  save(copy)
+  return copy
 }

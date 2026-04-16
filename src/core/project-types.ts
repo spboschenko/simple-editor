@@ -9,7 +9,7 @@
  * loading a project directly hydrates the store. If the editor evolves, a
  * migration step can be added to the storage layer.
  */
-import type { DocumentState, CameraState } from './types'
+import type { AnyDocumentState, CameraState } from './types'
 
 /** Metadata shown on the Dashboard — lightweight, loaded as a list. */
 export interface ProjectMeta {
@@ -17,11 +17,13 @@ export interface ProjectMeta {
   name: string
   createdAt: string   // ISO-8601
   updatedAt: string   // ISO-8601
+  /** Domain type of the document. Populated by listMeta() from payload.document.domainType. */
+  domainType?: string
 }
 
 /** Full project payload persisted alongside metadata. */
 export interface ProjectPayload {
-  document: DocumentState
+  document: AnyDocumentState
   camera: CameraState
 }
 

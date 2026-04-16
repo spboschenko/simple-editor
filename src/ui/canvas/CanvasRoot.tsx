@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Stage, Layer } from 'react-konva'
 import { DocumentLayer } from './DocumentLayer'
+import { DomainLayer } from './DomainLayer'
 import { OverlayLayer } from './OverlayLayer'
 import { useEditor } from '../../core/store'
 import { CanvasErrorBoundary } from '../../shared/error-boundary'
@@ -90,7 +91,7 @@ export const CanvasRoot: React.FC = () => {
       if (!e.ctrlKey) return
       if (e.key === '0') {
         e.preventDefault()
-        dispatch({ type: 'setCamera', camera: fitCamera(stateRef.current.document.rect) })
+        dispatch({ type: 'setCamera', camera: fitCamera(stateRef.current.document.geometry) })
       } else if (e.key === '=' || e.key === '+') {
         e.preventDefault()
         const cam = stateRef.current.camera
@@ -161,7 +162,7 @@ export const CanvasRoot: React.FC = () => {
       return
     }
 
-    const rect = state.document.rect
+    const rect = state.document.geometry
     const hit = rect.visible ? rectAdapter.hitTest(rect, worldPos) !== null : false
 
     if (hit && rect.visible) {
@@ -197,7 +198,7 @@ export const CanvasRoot: React.FC = () => {
       // Idle: update body hover cursor (unless pointer is over an overlay handle)
       if (!handleHoveredRef.current) {
         const worldPos = screenToWorld(rawPos.x, rawPos.y, cam)
-        const rect = stateRef.current.document.rect
+        const rect = stateRef.current.document.geometry
         const hit = rect.visible && !rect.locked ? rectAdapter.hitTest(rect, worldPos) : null
         const isSelected = stateRef.current.ui.selectedId === rect.id
         setBodyHovered(hit === 'body')
@@ -235,8 +236,8 @@ export const CanvasRoot: React.FC = () => {
 
   const camera = state.camera
   const showRulers = state.ui.showRulers
-  const selectedRect = state.ui.selectedId === state.document.rect.id
-    ? (state.interaction.previewRect ?? state.document.rect)
+  const selectedRect = state.ui.selectedId === state.document.geometry.id
+    ? (state.interaction.previewRect ?? state.document.geometry)
     : null
 
   return (
@@ -281,6 +282,9 @@ export const CanvasRoot: React.FC = () => {
               >
                 <Layer>
                   <DocumentLayer />
+                </Layer>
+                <Layer>
+                  <DomainLayer />
                 </Layer>
                 <Layer>
                   <OverlayLayer

@@ -1,15 +1,19 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { useEditor } from '../../core/store'
+import { getDomain } from '../../core/domain-contract'
 import { IconLockClosed } from '../../shared/icons'
 import { InspectorField } from '../../shared/ui'
 import { useNumericField } from '../../shared/hooks/useNumericField'
 
 export const Inspector: React.FC = () => {
   const { state, dispatch } = useEditor()
-  const rect = state.document.rect
+  const rect = state.document.geometry
   const selected = state.ui.selectedId === rect.id
   const zoomPct = Math.round(state.camera.scale * 100)
-  const isLocked = rect.locked
+
+  const domain = getDomain(state.document.domainType)
+  const isDomainLocked = domain?.isGeometryLocked?.(state.document.data) ?? false
+  const isLocked = rect.locked || isDomainLocked
 
   // Stable ref to current rect — avoids stale closures inside onParsed callbacks.
   const rectRef = useRef(rect)
@@ -22,6 +26,12 @@ export const Inspector: React.FC = () => {
   // ── Immediate-commit helper ───────────────────────────────────────────────
   const commitPatch = (patch: Partial<typeof rect>) =>
     dispatch({ type: 'updateProps', rect: { ...rectRef.current, ...patch } })
+
+  // ── Domain data updater ───────────────────────────────────────────────────
+  const onUpdateData = useCallback(
+    (data: unknown) => dispatch({ type: 'updateDomainData', data }),
+    [dispatch]
+  )
 
   // ── Numeric fields — onParsed dispatches immediately on blur / Enter ──────
   const xField = useNumericField(rect.x,      { min: 0 }, (v) => commitPatch({ x: v }))
@@ -82,13 +92,13 @@ export const Inspector: React.FC = () => {
       {inspectorHeader}
 
       <div className="inspector-section">
-        <div className="inspector-object-title">Rectangle</div>
+        <div className="inspector-object-title">{domain?.label ?? 'Rectangle'}</div>
       </div>
 
       {isLocked && (
         <div className="inspector-lock-banner">
           <IconLockClosed size={12} />
-          Locked — edit disabled
+          {rect.locked ? 'Locked — edit disabled' : 'Cell locked — geometry blocked'}
         </div>
       )}
 
@@ -130,6 +140,15 @@ export const Inspector: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Domain-specific inspector section */}
+      {domain?.InspectorSection && (
+        <domain.InspectorSection
+          data={state.document.data}
+          onUpdateData={onUpdateData}
+          isLocked={rect.locked}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,8 @@
+<!-- entities: useNumericField, parseAndValidate, parseNumericExpression, NumericConstraints, InspectorField, numeric.ts, Inspector.tsx, DomainContract.InspectorSection -->
+
 # Numeric Input Rules
 
-Applies to all numeric inspector fields (`x`, `y`, `width`, `height`).
+Applies to **all** numeric fields in the editor — both geometry fields (`x`, `y`, `width`, `height`) and any domain-specific fields (e.g. Gap X/Y in grid-layout).
 
 ## Three-level model
 
@@ -70,9 +72,8 @@ When input is invalid:
 
 | Trigger | Effect |
 |---|---|
-| **Enter** in a numeric field | Evaluate; if valid → dispatch `updateProps` |
-| **Tab / blur** from a numeric field | Evaluate; if valid → format field, update `numericRef`; no dispatch |
-| **Commit button** | Evaluate all fields; dispatch `updateProps` |
+| **Enter** in a numeric field | Evaluate; if valid → dispatch `updateProps` (or `onUpdateData` in domain fields) |
+| **Tab / blur** from a numeric field | Evaluate; if valid → format field, call `onParsed`; no additional side effect |
 | **Escape** | Reset all fields to current document values; no dispatch |
 
 ## Per-field constraints
@@ -89,6 +90,24 @@ When input is invalid:
 | File | Role |
 |---|---|
 | `src/shared/numeric.ts` | `parseNumericExpression`, `validateAndRound`, `parseAndValidate` |
-| `src/shared/hooks/useNumericField.ts` | React hook: rawText, isInvalid, tryCommit, tryBlur, reset |
-| `src/shared/ui.tsx` | `Field` component with `invalid` prop (red border) |
-| `src/ui/inspector/Inspector.tsx` | Wires hooks to fields and dispatch |
+| `src/shared/hooks/useNumericField.ts` | React hook: rawText, tryCommit, tryBlur, reset |
+| `src/shared/ui.tsx` | `InspectorField` component — bind `rawText`, `onChange`, `tryBlur`, `onKeyDown` to this |
+| `src/ui/inspector/Inspector.tsx` | Wires geometry fields to the hook and dispatch |
+
+---
+
+## Domain-specific numeric fields
+
+The three-level model and the `useNumericField` + `<InspectorField>` contract is **not limited to geometry fields**. Every domain `InspectorSection` that exposes numeric inputs must follow the identical pattern:
+
+- Use `useNumericField(committedValue, constraints, onParsed)` for state management.
+- Bind `rawText` / `onChange` / `tryBlur` to `<InspectorField>`.
+- Keyboard handler: `Enter` → blur (which triggers `tryBlur`), `Escape` → `field.reset()` + blur.
+- The `onParsed` callback receives a clean integer and calls `onUpdateData(newData)` with a new domain data payload.
+- Invalid expressions revert silently to the last committed value — no partial write to `data`.
+
+### Enforced rule
+
+`parseFloat()`, raw `useState` + `useEffect` pairs, or bespoke `commitX / commitY` functions inside a domain `InspectorSection` are **forbidden**. They bypass arithmetic expression parsing and break the uniform input contract that users expect across all fields.
+
+Reference implementation: `src/domains/grid-layout.tsx` → `GridInspectorSection` (Gap X/Y fields).

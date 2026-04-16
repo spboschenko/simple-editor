@@ -24,7 +24,7 @@ export const CanvasShell: React.FC = () => {
         </div>
         <div style={{ display: 'flex', gap: spacing[2], alignItems: 'center' }}>
           <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: { ...camera, x: 0, y: 0, scale: 1 } })}>1:1</ToolButton>
-          <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: fitCamera(state.document.rect) })}>Fit</ToolButton>
+          <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: fitCamera(state.document.geometry) })}>Fit</ToolButton>
         </div>
       </div>
     </div>

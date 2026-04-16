@@ -5,7 +5,7 @@ import { worldToKonvaY } from '../../core/coord-transform'
 
 export const DocumentLayer: React.FC = () => {
   const { state } = useEditor()
-  const r = state.interaction.previewRect ?? state.document.rect
+  const r = state.interaction.previewRect ?? state.document.geometry
   const scale = state.camera.scale
 
   // Hidden objects are not rendered at all — they don't exist visually.

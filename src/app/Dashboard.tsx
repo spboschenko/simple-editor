@@ -3,34 +3,156 @@
  *
  * Application entry screen. Displays the project list and lets the user
  * create a new project or open an existing one.
- * Projects are persisted in localStorage via project-storage.
+ *
+ * Each project card has:
+ *   - Click → open project
+ *   - ⋯ menu button → dropdown with Rename / Duplicate / Delete
+ *   - Inline rename: clicking the name in the dropdown puts it in edit mode
  */
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useProjects } from './projects-context'
+import { ConfirmDialog } from '../shared/ConfirmDialog'
+import { listDomains } from '../core/domain-contract'
 import type { ProjectMeta } from '../core/project-types'
-import * as storage from '../core/project-storage'
 
 interface DashboardProps {
   onOpenProject: (id: string) => void
-  onCreateProject: () => void
+  onCreateProject: (domainType: string) => void
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onCreateProject }) => {
-  const [projects, setProjects] = useState<ProjectMeta[]>([])
+// ── Card menu state ───────────────────────────────────────────────────────────
 
-  const refresh = useCallback(() => setProjects(storage.listMeta()), [])
+type CardMenuState =
+  | { mode: 'closed' }
+  | { mode: 'open'; id: string }
+  | { mode: 'renaming'; id: string }
 
-  useEffect(() => { refresh() }, [refresh])
+// ── Individual project card ───────────────────────────────────────────────────
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    storage.remove(id)
-    refresh()
+interface ProjectCardProps {
+  project: ProjectMeta
+  domainLabel?: string
+  onOpen: () => void
+  onRename: (newName: string) => void
+  onDuplicate: () => void
+  onDeleteRequest: () => void
+}
+
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, domainLabel, onOpen, onRename, onDuplicate, onDeleteRequest }) => {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [draft, setDraft] = useState(project.name)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Sync draft when name changes externally
+  useEffect(() => { setDraft(project.name) }, [project.name])
+
+  // Close on outside click
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
+  // Focus input on rename mode
+  useEffect(() => {
+    if (renaming) setTimeout(() => inputRef.current?.select(), 0)
+  }, [renaming])
+
+  const commitRename = () => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== project.name) onRename(trimmed)
+    else setDraft(project.name)
+    setRenaming(false)
   }
 
   const formatDate = (iso: string) => {
     try { return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) }
     catch { return iso }
   }
+
+  return (
+    <div className="project-card" onClick={renaming ? undefined : onOpen}>
+      <div className="project-card__preview" />
+
+      <div className="project-card__body">
+        {renaming ? (
+          <input
+            ref={inputRef}
+            className="project-card__rename-input"
+            value={draft}
+            onClick={e => e.stopPropagation()}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitRename()
+              if (e.key === 'Escape') { setDraft(project.name); setRenaming(false) }
+              e.stopPropagation()
+            }}
+          />
+        ) : (
+          <span className="project-card__name">{project.name}</span>
+        )}
+        <span className="project-card__date">{formatDate(project.updatedAt)}</span>
+        {domainLabel && <span className="domain-badge">{domainLabel}</span>}
+      </div>
+
+      {/* ⋯ menu button */}
+      <div className="project-card__menu-wrap" ref={menuRef}>
+        <button
+          className="project-card__menu-btn"
+          title="Options"
+          onClick={e => { e.stopPropagation(); setMenuOpen(v => !v) }}
+        >
+          ⋯
+        </button>
+
+        {menuOpen && (
+          <div className="card-dropdown">
+            <button className="card-dropdown__item" onClick={e => {
+              e.stopPropagation()
+              setRenaming(true)
+              setMenuOpen(false)
+            }}>
+              Rename
+            </button>
+            <button className="card-dropdown__item" onClick={e => {
+              e.stopPropagation()
+              onDuplicate()
+              setMenuOpen(false)
+            }}>
+              Duplicate
+            </button>
+            <div className="card-dropdown__sep" />
+            <button className="card-dropdown__item card-dropdown__item--danger" onClick={e => {
+              e.stopPropagation()
+              setMenuOpen(false)
+              onDeleteRequest()
+            }}>
+              Delete…
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+export const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onCreateProject }) => {
+  const { projects, renameProject, deleteProject, duplicateProject } = useProjects()
+  const [pendingDelete, setPendingDelete] = useState<ProjectMeta | null>(null)
+
+  const domains = useMemo(() => listDomains(), [])
+  const domainLabelMap = useMemo(
+    () => Object.fromEntries(domains.map(d => [d.type, d.label ?? d.type])),
+    [domains]
+  )
 
   return (
     <div className="dashboard">
@@ -40,44 +162,64 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onCreatePro
       </header>
 
       <main className="dashboard__main">
+        {/* ── New Project ────────────────────────────────────────────── */}
         <div className="dashboard__section-header">
-          <h2 className="dashboard__section-title">Projects</h2>
-          <button className="dashboard__create-btn" onClick={onCreateProject}>
-            + Create New Project
-          </button>
+          <h2 className="dashboard__section-title">New Project</h2>
+        </div>
+        <div className="new-project-grid">
+          {domains.map(d => {
+            const lbl = d.label ?? d.type
+            const abbr = lbl.split(' ').map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase()
+            return (
+              <button key={d.type} className="new-project-card" onClick={() => onCreateProject(d.type)}>
+                <span className="new-project-card__abbr">{abbr}</span>
+                <span className="new-project-card__label">{lbl}</span>
+              </button>
+            )
+          })}
         </div>
 
-        {projects.length === 0 ? (
-          <div className="dashboard__empty">
-            <p>No projects yet.</p>
-            <p className="dashboard__empty-hint">
-              Click <strong>Create New Project</strong> to get started.
-            </p>
-          </div>
-        ) : (
-          <div className="dashboard__grid">
-            {projects.map(p => (
-              <div key={p.id} className="project-card" onClick={() => onOpenProject(p.id)}>
-                <div className="project-card__preview" />
-                <div className="project-card__body">
-                  <span className="project-card__name">{p.name}</span>
-                  <span className="project-card__date">{formatDate(p.updatedAt)}</span>
-                </div>
-                <button
-                  className="project-card__delete"
-                  title="Delete project"
-                  onClick={e => handleDelete(e, p.id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
+        {/* ── Recent Projects ─────────────────────────────────────────── */}
+        {projects.length > 0 && (
+          <>
+            <div className="dashboard__section-header" style={{ marginTop: 'var(--sp-10)' }}>
+              <h2 className="dashboard__section-title">Recent Projects</h2>
+            </div>
+            <div className="dashboard__grid">
+              {projects.map(p => (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  domainLabel={
+                    p.domainType && p.domainType !== 'null'
+                      ? (domainLabelMap[p.domainType] ?? p.domainType)
+                      : undefined
+                  }
+                  onOpen={() => onOpenProject(p.id)}
+                  onRename={name => renameProject(p.id, name)}
+                  onDuplicate={() => duplicateProject(p.id)}
+                  onDeleteRequest={() => setPendingDelete(p)}
+                />
+              ))}
+            </div>
+          </>
         )}
       </main>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        message={`Delete «${pendingDelete?.name}»? This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (pendingDelete) deleteProject(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }
 
 export default Dashboard
+
 
