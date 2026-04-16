@@ -1,0 +1,325 @@
+/*
+ * styles.css
+ *
+ * All values mirror design-tokens.ts exactly.
+ * CSS vars are the runtime version of the same token set.
+ * Do NOT introduce magic numbers here — add to design-tokens.ts first.
+ */
+
+/* ── Design tokens as CSS custom properties ─────────────────────────────── */
+:root {
+  /* Colors */
+  --color-bg:        #1e1e1e;
+  --color-panel:     #252526;
+  --color-border:    #3c3c3c;
+  --color-text:      #ffffff;
+  --color-muted:     #a0a0a0;
+  --color-accent:    #4a90e2;
+
+  /* Spacing (4px grid) */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* Typography */
+  --fs-xs:   11px;
+  --fs-sm:   12px;
+  --fs-base: 13px;
+  --fs-md:   14px;
+  --fs-lg:   16px;
+
+  --lh-tight:   1.2;
+  --lh-normal:  1.4;
+  --lh-relaxed: 1.6;
+
+  /* Border radius */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+
+  /* Component heights */
+  --toolbar-h: 40px;
+  --btn-h:     28px;
+  --input-h:   28px;
+}
+
+/* ── Reset / base ───────────────────────────────────────────────────────── */
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Shared region appearance (layout-agnostic) ─────────────────────────── */
+.topbar {
+  background: var(--color-panel);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-3);
+  gap: var(--sp-2);
+  border-bottom: 1px solid var(--color-border);
+  height: var(--toolbar-h);
+}
+
+.left {
+  background: var(--color-panel);
+  border-right: 1px solid var(--color-border);
+  padding: var(--sp-4);
+  overflow: auto;
+}
+
+.center {
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.right {
+  background: var(--color-panel);
+  border-left: 1px solid var(--color-border);
+  padding: var(--sp-4);
+  overflow: auto;
+}
+
+/* ── App shell layout ───────────────────────────────────────────────────── */
+/*
+ * Three layout variants, each matching a LayoutMode class.
+ * Panels are NOT hardcoded into a single grid — each layout adds its own class.
+ */
+
+/* Desktop: 3-column grid */
+.app-shell--desktop {
+  display: grid;
+  grid-template-rows: var(--toolbar-h) 1fr;
+  grid-template-columns: 240px 1fr 280px;
+  height: 100vh;
+}
+.app-shell--desktop .topbar { grid-column: 1 / 4; }
+.app-shell--desktop .left   { grid-row: 2; grid-column: 1; }
+.app-shell--desktop .center { grid-row: 2; grid-column: 2; }
+.app-shell--desktop .right  { grid-row: 2; grid-column: 3; }
+
+/* Compact: toolbar + full-width canvas */
+.app-shell--compact {
+  display: grid;
+  grid-template-rows: var(--toolbar-h) 1fr;
+  height: 100vh;
+  position: relative;   /* positioning context for drawers */
+}
+.app-shell--compact .topbar { grid-row: 1; }
+.compact-canvas { grid-row: 2; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Mobile: canvas fills viewport, action bar at bottom */
+.app-shell--mobile {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+}
+.mobile-canvas { flex: 1; overflow: hidden; }
+.mobile-actionbar {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--color-panel);
+  border-top: 1px solid var(--color-border);
+  height: var(--toolbar-h);
+  flex-shrink: 0;
+}
+
+/* ── Drawer / sheet ─────────────────────────────────────────────────────── */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 260px;
+  background: var(--color-panel);
+  border-color: var(--color-border);
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drawer--left  { left: 0;  border-right-width: 1px; border-right-style: solid; }
+.drawer--right { right: 0; border-left-width: 1px;  border-left-style: solid;  }
+
+.drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-3);
+  height: var(--toolbar-h);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.drawer__title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-4);
+}
+
+/* ── Canvas area ────────────────────────────────────────────────────────── */
+.canvas-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.canvas-toolbar {
+  position: absolute;
+  top: var(--sp-2);
+  left: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  z-index: 10;
+}
+
+.canvas-toolbar-zoom {
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+  padding: 0 var(--sp-1);
+  min-width: 36px;
+  text-align: right;
+}
+
+.canvas-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-muted);
+}
+
+/* ── Typography helpers ─────────────────────────────────────────────────── */
+.panel-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: var(--lh-tight);
+  margin-bottom: var(--sp-2);
+}
+
+.row { display: flex; gap: var(--sp-2); align-items: center; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.tool-btn {
+  height: var(--btn-h);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.tool-btn:hover { background: var(--color-border); color: var(--color-text); }
+.tool-btn.active { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+.tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Icon buttons (borderless, small) */
+.icon-btn {
+  width: var(--btn-h);
+  height: var(--btn-h);
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+}
+.icon-btn:hover { background: var(--color-border); color: var(--color-text); }
+.icon-btn.active { color: var(--color-text); }
+
+/* ── Structure panel ────────────────────────────────────────────────────── */
+.structure-item {
+  height: var(--btn-h);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: var(--fs-base);
+  color: var(--color-muted);
+  transition: background 0.1s, color 0.1s;
+}
+.structure-item:hover { background: var(--color-border); color: var(--color-text); }
+.structure-item.selected { background: rgba(74,144,226,0.18); color: var(--color-text); }
+
+/* ── Inspector ──────────────────────────────────────────────────────────── */
+.inspector-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+}
+
+.inspector-field label {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.inspector-field input {
+  height: var(--input-h);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--fs-base);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.1s;
+}
+.inspector-field input:focus { border-color: var(--color-accent); }
+.inspector-field input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Spec panel ─────────────────────────────────────────────────────────── */
+.spec-item {
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+  line-height: var(--lh-normal);
+}
+
