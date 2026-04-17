@@ -197,8 +197,8 @@ export interface DomainModule<TData = unknown, TComputed = unknown>
  *   // resolves to: DocumentState<GridPayload, GridResults>
  */
 export type TypedDocumentState<D extends DomainContract<any, any>> =
-  D extends DomainContract<infer TData, infer TComputed>
-    ? DocumentState<TData, TComputed>
+  D extends DomainContract<infer _TData, infer _TComputed>
+    ? DocumentState
     : never
 
 // ── Global registry ───────────────────────────────────────────────────────────

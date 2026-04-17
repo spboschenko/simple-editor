@@ -3,90 +3,94 @@ import { useEditor } from '../../core/store'
 import { IconEyeOpen, IconEyeClosed, IconLockOpen, IconLockClosed } from '../../shared/icons'
 import { PanelTitle, IconButton } from '../../shared/ui'
 import { spacing, colors } from '../../shared/tokens/design-tokens'
+import { getDomain } from '../../core/domain-contract'
 
 // ── Structure section ────────────────────────────────────────────────────────
 
 const StructureSection: React.FC = () => {
   const { state, dispatch } = useEditor()
-  const selected = state.ui.selectedId
-  const rect = state.document.geometry
-  const [hovered, setHovered] = useState(false)
-
-  const isRectActive = selected === 'rect-1' || hovered
-  const showActions = isRectActive
-
-  const toggleLock = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    dispatch({ type: 'setLocked', locked: !rect.locked })
-  }
-
-  const toggleVisible = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    dispatch({ type: 'setVisible', visible: !rect.visible })
-  }
+  const selection = state.ui.selection
+  const nodes = state.document.nodes
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   return (
-    // Click on the section background deselects
     <div onClick={() => dispatch({ type: 'resetSelection' })}>
       <PanelTitle>Structure</PanelTitle>
       <div style={{ marginLeft: spacing[2] }}>
-        {/* Document root — click deselects canvas object */}
+        {/* Document root */}
         <div
-          className={'structure-item ' + (selected === null ? 'selected' : '')}
+          className={'structure-item ' + (selection.length === 0 ? 'selected' : '')}
           onClick={e => { e.stopPropagation(); dispatch({ type: 'resetSelection' }) }}
         >
           Document
         </div>
 
-        {/* Rectangle #1 row */}
-        <div
-          className={'structure-item ' + (selected === 'rect-1' ? 'selected' : '')}
-          style={{
-            marginLeft: spacing[4],
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            opacity: rect.visible ? 1 : 0.4,
-          }}
-          onClick={e => {
+        {/* All nodes */}
+        {nodes.map(node => {
+          const nodeId = node.geometry.id
+          const rect = node.geometry
+          const isSelected = selection.includes(nodeId)
+          const isActive = isSelected || hoveredId === nodeId
+          const domain = getDomain(node.domainType)
+
+          const toggleLock = (e: React.MouseEvent) => {
             e.stopPropagation()
-            // Locked objects can still be selected from the structure panel
-            dispatch({ type: 'select', id: 'rect-1' })
-          }}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-        >
-          <span>└── Rectangle #1</span>
+            dispatch({ type: 'setLocked', nodeId, locked: !rect.locked })
+          }
 
-          {/* Action icons — visible only on hover or selection */}
-          <span
-            style={{
-              display: 'flex',
-              gap: spacing[1],
-              opacity: showActions ? 1 : 0,
-              transition: 'opacity 0.1s',
-              pointerEvents: showActions ? 'auto' : 'none',
-            }}
-          >
-            {/* Visibility toggle */}
-            <IconButton
-              title={rect.visible ? 'Hide' : 'Show'}
-              onClick={toggleVisible}
-              style={{ color: rect.visible ? colors.textSecondary : colors.textPrimary }}
-            >
-              {rect.visible ? <IconEyeOpen /> : <IconEyeClosed />}
-            </IconButton>
+          const toggleVisible = (e: React.MouseEvent) => {
+            e.stopPropagation()
+            dispatch({ type: 'setVisible', nodeId, visible: !rect.visible })
+          }
 
-            {/* Lock toggle */}
-            <IconButton
-              title={rect.locked ? 'Unlock' : 'Lock'}
-              onClick={toggleLock}
-              style={{ color: rect.locked ? colors.textPrimary : colors.textSecondary }}
+          return (
+            <div
+              key={nodeId}
+              className={'structure-item ' + (isSelected ? 'selected' : '')}
+              style={{
+                marginLeft: spacing[4],
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                opacity: rect.visible ? 1 : 0.4,
+              }}
+              onClick={e => {
+                e.stopPropagation()
+                dispatch({ type: 'select', id: nodeId })
+              }}
+              onMouseEnter={() => setHoveredId(nodeId)}
+              onMouseLeave={() => setHoveredId(null)}
             >
-              {rect.locked ? <IconLockClosed /> : <IconLockOpen />}
-            </IconButton>
-          </span>
-        </div>
+              <span>└── {domain?.label ?? 'Rectangle'}</span>
+
+              <span
+                style={{
+                  display: 'flex',
+                  gap: spacing[1],
+                  opacity: isActive || rect.locked || !rect.visible ? 1 : 0,
+                  transition: 'opacity 0.1s',
+                  pointerEvents: isActive || rect.locked || !rect.visible ? 'auto' : 'none',
+                }}
+              >
+                <IconButton
+                  title={rect.visible ? 'Hide' : 'Show'}
+                  onClick={toggleVisible}
+                  style={{ color: rect.visible ? colors.textSecondary : colors.textPrimary }}
+                >
+                  {rect.visible ? <IconEyeOpen /> : <IconEyeClosed />}
+                </IconButton>
+
+                <IconButton
+                  title={rect.locked ? 'Unlock' : 'Lock'}
+                  onClick={toggleLock}
+                  style={{ color: rect.locked ? colors.textPrimary : colors.textSecondary }}
+                >
+                  {rect.locked ? <IconLockClosed /> : <IconLockOpen />}
+                </IconButton>
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -96,12 +100,23 @@ const StructureSection: React.FC = () => {
 
 const SpecSection: React.FC = () => {
   const { state } = useEditor()
-  const r = state.document.geometry
-  const area = Math.round(r.width * r.height)
+  const selection = state.ui.selection
+  const singleNode = selection.length === 1
+    ? state.document.nodes.find(n => n.geometry.id === selection[0])
+    : undefined
+  const r = singleNode?.geometry
+  const area = r ? Math.round(r.width * r.height) : 0
+
   return (
     <div style={{ marginTop: spacing[4] }}>
       <PanelTitle>Specification</PanelTitle>
-      <div className="spec-item">Area: {area}</div>
+      {r ? (
+        <div className="spec-item">Area: {area}</div>
+      ) : (
+        <div className="spec-item">
+          {selection.length > 1 ? `${selection.length} objects selected` : 'No selection'}
+        </div>
+      )}
     </div>
   )
 }

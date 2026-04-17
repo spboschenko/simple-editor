@@ -20,10 +20,10 @@ export function useUndoRedo(): void {
 
       const mod = e.ctrlKey || e.metaKey
 
-      const isUndo = mod && !e.shiftKey && e.key === 'z'
+      const isUndo = mod && !e.shiftKey && e.code === 'KeyZ'
       const isRedo =
-        (mod && (e.key === 'y' || e.key === 'Y')) ||
-        (mod && e.shiftKey && (e.key === 'z' || e.key === 'Z'))
+        (mod && e.code === 'KeyY') ||
+        (mod && e.shiftKey && e.code === 'KeyZ')
 
       if (isUndo) {
         e.preventDefault()

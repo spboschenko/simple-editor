@@ -18,9 +18,10 @@
  */
 
 import React, { useRef, useEffect } from 'react'
-import { Rect } from '../../../core/types'
 import { Camera, STAGE_H, RULER_SIZE } from '../../../core/coord-transform'
 import { chooseTickStep, LABEL_COLLISION_PX } from './rulerUtils'
+
+type Bounds = { x: number; y: number; width: number; height: number }
 
 const TICK_W     = 7          // tick mark width in px
 const FONT       = 'Inter, system-ui, sans-serif'
@@ -33,7 +34,7 @@ const BOUND_CLR  = '#4a90e2'
 
 interface Props {
   camera: Camera
-  selectedRect: Rect | null
+  selectedRect: Bounds | null
 }
 
 export const VerticalRuler: React.FC<Props> = ({ camera, selectedRect }) => {

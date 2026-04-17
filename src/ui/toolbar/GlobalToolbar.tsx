@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { useEditor } from '../../core/store'
+import { useEditor, nodesBoundingBox } from '../../core/store'
 import { useNav } from '../../app/nav-context'
 import { useProjects } from '../../app/projects-context'
 import { useDomainUI } from '../../core/domain-ui-context'
@@ -156,7 +156,7 @@ export const GlobalToolbar: React.FC = () => {
     { kind: 'item', label: 'Zoom In',          shortcut: 'Ctrl +', action: () => setCamera(cam.scale * 1.25) },
     { kind: 'item', label: 'Zoom Out',         shortcut: 'Ctrl −', action: () => setCamera(cam.scale / 1.25) },
     { kind: 'item', label: 'Zoom to 100%',     shortcut: 'Ctrl 0', action: () => setCamera(1) },
-    { kind: 'item', label: 'Zoom to fit',      action: () => dispatch({ type: 'setCamera', camera: fitCamera(state.document.geometry) }) },
+    { kind: 'item', label: 'Zoom to fit',      action: () => { const bbox = nodesBoundingBox(state.document.nodes); if (bbox) dispatch({ type: 'setCamera', camera: fitCamera(bbox) }) } },
     { kind: 'item', label: 'Zoom to selection', action: stub('Zoom to selection') },
   ]
 
@@ -229,7 +229,12 @@ export const GlobalToolbar: React.FC = () => {
       />
       <ChangeDomainDialog
         open={changeDomainOpen}
-        currentDomainType={state.document.domainType}
+        currentDomainType={(() => {
+          const sel = state.ui.selection
+          if (sel.length === 0) return 'null'
+          const node = state.document.nodes.find(n => n.geometry.id === sel[0])
+          return node?.domainType ?? 'null'
+        })()}
         onSelect={domainType => {
           dispatch({ type: 'changeDomain', domainType })
           setChangeDomainOpen(false)

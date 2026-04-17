@@ -102,7 +102,7 @@ export const ZoomLabel: React.FC<{ scale: number }> = ({ scale }) => (
 // when onScrub is provided, allowing values to be changed by dragging.
 
 interface InspectorFieldProps {
-  label: string
+  label: React.ReactNode
   value: string | number
   disabled?: boolean
   invalid?: boolean

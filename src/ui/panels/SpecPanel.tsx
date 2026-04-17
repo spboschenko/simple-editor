@@ -8,28 +8,39 @@
 import React, { useState } from 'react'
 import { useEditor } from '../../core/store'
 import { getDomain } from '../../core/domain-contract'
+import { getNodeDisplayStyles } from '../../core/types'
 
 export const SpecPanel: React.FC = () => {
   const { state } = useEditor()
   const [expanded, setExpanded] = useState(true)
-  const selected = state.ui.selectedId
-  const r = state.document.geometry
+  const selection = state.ui.selection
 
-  const geoRows = selected
-    ? [
-        { label: 'X',      value: `${r.x} px` },
-        { label: 'Y',      value: `${r.y} px` },
-        { label: 'Width',  value: `${r.width} px` },
-        { label: 'Height', value: `${r.height} px` },
-        { label: 'Area',   value: `${Math.round(r.width * r.height).toLocaleString()} px²` },
-        { label: 'Fill',   value: r.fill },
-        { label: 'Locked', value: r.locked ? 'Yes' : 'No' },
-      ]
+  // Single-selected node
+  const singleNode = selection.length === 1
+    ? state.document.nodes.find(n => n.geometry.id === selection[0])
+    : undefined
+  const r = singleNode?.geometry
+
+  const geoRows = r
+    ? (() => {
+        const styles = getNodeDisplayStyles(singleNode!)
+        return [
+          { label: 'X',            value: `${r.x} px` },
+          { label: 'Y',            value: `${r.y} px` },
+          { label: 'Width',        value: `${r.width} px` },
+          { label: 'Height',       value: `${r.height} px` },
+          { label: 'Area',         value: `${Math.round(r.width * r.height).toLocaleString()} px²` },
+          { label: 'Fill',         value: styles.fill.visible ? `${styles.fill.color} ${styles.fill.opacity}%` : 'hidden' },
+          { label: 'Stroke',       value: styles.stroke.visible ? `${styles.stroke.color} ${styles.stroke.opacity}%` : 'none' },
+          { label: 'Stroke Width', value: styles.stroke.visible ? `${styles.strokeWidth} px` : '—' },
+          { label: 'Locked',       value: r.locked ? 'Yes' : 'No' },
+        ]
+      })()
     : null
 
-  const domain = getDomain(state.document.domainType)
-  const domainRows = selected && domain?.specRows
-    ? domain.specRows(state.document.computed)
+  const domain = singleNode ? getDomain(singleNode.domainType) : undefined
+  const domainRows = singleNode && domain?.specRows
+    ? domain.specRows(singleNode.computed)
     : null
 
   return (

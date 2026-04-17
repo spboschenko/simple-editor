@@ -1,7 +1,7 @@
 import React from 'react'
 import { CanvasRoot } from './CanvasRoot'
 import { ToolButton } from '../../shared/ui'
-import { useEditor } from '../../core/store'
+import { useEditor, nodesBoundingBox } from '../../core/store'
 import { fitCamera } from '../../core/coord-transform'
 import { spacing } from '../../shared/tokens/design-tokens'
 
@@ -19,12 +19,27 @@ export const CanvasShell: React.FC = () => {
 
       <div className="floating-toolbar" role="toolbar" aria-label="Canvas tools">
         <div style={{ display: 'flex', gap: spacing[2], alignItems: 'center' }}>
-          <ToolButton active> Select </ToolButton>
+          <ToolButton
+            active={state.ui.activeTool === 'select'}
+            onClick={() => dispatch({ type: 'setActiveTool', tool: 'select' })}
+          >
+            Select
+          </ToolButton>
+          <ToolButton
+            active={state.ui.activeTool === 'rectangle'}
+            onClick={() => dispatch({ type: 'setActiveTool', tool: 'rectangle' })}
+            title="Draw a new rectangle (R)"
+          >
+            Rectangle
+          </ToolButton>
           <ToolButton> Hand </ToolButton>
         </div>
         <div style={{ display: 'flex', gap: spacing[2], alignItems: 'center' }}>
           <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: { ...camera, x: 0, y: 0, scale: 1 } })}>1:1</ToolButton>
-          <ToolButton onClick={() => dispatch({ type: 'setCamera', camera: fitCamera(state.document.geometry) })}>Fit</ToolButton>
+          <ToolButton onClick={() => {
+            const bbox = nodesBoundingBox(state.document.nodes)
+            if (bbox) dispatch({ type: 'setCamera', camera: fitCamera(bbox) })
+          }}>Fit</ToolButton>
         </div>
       </div>
     </div>

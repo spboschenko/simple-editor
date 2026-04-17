@@ -14,9 +14,11 @@
  *   createDefault(name)  → Project                 (factory with default payload)
  */
 import type { Project, ProjectMeta, ProjectPayload } from './project-types'
-import type { AnyDocumentState, CameraState, Rect } from './types'
+import type { AnyDocumentState, CameraState, Rect, SceneNode } from './types'
+import { DEFAULT_FILL, DEFAULT_STROKE, migrateToPaint } from './types'
 import { fitCamera } from './coord-transform'
 import { nullDomain, getDomain } from './domain-contract'
+import { nodesBoundingBox } from './store'
 
 const STORAGE_KEY = 'projects'
 
@@ -26,7 +28,39 @@ function readAll(): Project[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
-    return JSON.parse(raw) as Project[]
+    const projects = JSON.parse(raw) as Project[]
+    // Migrate old single-object format to multi-node format
+    for (const p of projects) {
+      const doc = p.payload?.document as any
+      if (doc && !Array.isArray(doc.nodes)) {
+        const geometry = doc.geometry as Rect | undefined
+        if (geometry) {
+          const domainType = doc.domainType ?? nullDomain.type
+          const data = doc.data ?? nullDomain.defaults
+          const domain = getDomain(domainType) ?? nullDomain
+          const node: SceneNode = {
+            geometry,
+            domainType,
+            data,
+            computed: domain.process(geometry, data),
+          }
+          ;(p.payload.document as any) = { nodes: [node] }
+        } else {
+          ;(p.payload.document as any) = { nodes: [] }
+        }
+      }
+      // Migrate legacy rects missing stroke/strokeWidth fields and string-based fill/stroke to Paint
+      if (doc?.nodes) {
+        for (const node of doc.nodes as SceneNode[]) {
+          const g = node.geometry as any
+          g.fill = migrateToPaint(g.fill, DEFAULT_FILL)
+          g.stroke = migrateToPaint(g.stroke, DEFAULT_STROKE)
+          if (g.strokeWidth === undefined) g.strokeWidth = 1
+          if (g.strokePosition === undefined) g.strokePosition = 'center'
+        }
+      }
+    }
+    return projects
   } catch {
     return []
   }
@@ -49,17 +83,24 @@ function defaultPayload(): ProjectPayload {
     y: 80,
     width: 240,
     height: 160,
-    fill: '#60a5fa',
+    fill: { ...DEFAULT_FILL },
+    stroke: { ...DEFAULT_STROKE },
+    strokeWidth: 1,
+    strokePosition: 'center',
     locked: false,
     visible: true,
   }
-  const document: AnyDocumentState = {
-    domainType: nullDomain.type,
+  const node: SceneNode = {
     geometry,
+    domainType: nullDomain.type,
     data: nullDomain.defaults,
     computed: nullDomain.process(geometry, nullDomain.defaults),
   }
-  const camera: CameraState = fitCamera(geometry)
+  const document: AnyDocumentState = {
+    nodes: [node],
+  }
+  const bbox = nodesBoundingBox(document.nodes) ?? geometry
+  const camera: CameraState = fitCamera(bbox)
   return { document, camera }
 }
 
@@ -73,7 +114,7 @@ export function listMeta(): ProjectMeta[] {
       name: p.name,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
-      domainType: p.payload.document.domainType,
+      domainType: p.payload.document.nodes[0]?.domainType,
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
@@ -129,15 +170,21 @@ export function createFromDomain(name: string, domainType: string): Project {
     y:      dg.y      ?? 80,
     width:  dg.width  ?? 240,
     height: dg.height ?? 160,
-    fill:   dg.fill   ?? '#60a5fa',
+    fill:   migrateToPaint((dg as any).fill, DEFAULT_FILL),
+    stroke: migrateToPaint((dg as any).stroke, DEFAULT_STROKE),
+    strokeWidth: (dg as any).strokeWidth ?? 1,
+    strokePosition: (dg as any).strokePosition ?? 'center',
     locked: dg.locked ?? false,
     visible: dg.visible ?? true,
   }
-  const document: AnyDocumentState = {
-    domainType,
+  const node: SceneNode = {
     geometry,
+    domainType,
     data: domain.defaults,
     computed: domain.process(geometry, domain.defaults),
+  }
+  const document: AnyDocumentState = {
+    nodes: [node],
   }
   const now = new Date().toISOString()
   return {

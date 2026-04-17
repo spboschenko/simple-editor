@@ -14,14 +14,21 @@ import { getDomain } from '../../core/domain-contract'
 
 export const DomainLayer: React.FC = () => {
   const { state } = useEditor()
-
-  const { domainType, geometry, computed } = state.document
   const scale = state.camera.scale
 
-  const domain = getDomain(domainType)
-  if (!domain?.renderOverlay) return null
-
-  return <>{domain.renderOverlay(geometry, computed, scale)}</>
+  return (
+    <>
+      {state.document.nodes.map(node => {
+        const domain = getDomain(node.domainType)
+        if (!domain?.renderOverlay) return null
+        return (
+          <React.Fragment key={node.geometry.id}>
+            {domain.renderOverlay(node.geometry, node.computed, scale)}
+          </React.Fragment>
+        )
+      })}
+    </>
+  )
 }
 
 export default DomainLayer

@@ -10,7 +10,7 @@ import { AffordanceKind } from './affordance-types'
  * Unselected objects show `default` cursor with a hover outline instead.
  * See CanvasRoot handleMouseMove for the selection-aware guard.
  */
-export type CursorSource = AffordanceKind | 'none' | 'pan' | 'panning'
+export type CursorSource = AffordanceKind | 'none' | 'pan' | 'panning' | 'draw'
 
 export const cursorForAffordance: Record<CursorSource, string> = {
   body:        'move',
@@ -25,4 +25,5 @@ export const cursorForAffordance: Record<CursorSource, string> = {
   none:        'default',
   pan:         'grab',
   panning:     'grabbing',
+  draw:        'crosshair',
 }

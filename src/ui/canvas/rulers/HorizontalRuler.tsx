@@ -13,9 +13,10 @@
  */
 
 import React, { useRef, useEffect } from 'react'
-import { Rect } from '../../../core/types'
 import { Camera, STAGE_W, RULER_SIZE, worldToScreen } from '../../../core/coord-transform'
 import { chooseTickStep, LABEL_COLLISION_PX } from './rulerUtils'
+
+type Bounds = { x: number; y: number; width: number; height: number }
 
 const TICK_H = 7          // tick mark height in px
 const FONT = 'Inter, system-ui, sans-serif'
@@ -28,7 +29,7 @@ const BOUND_CLR = '#4a90e2'  // accent
 
 interface Props {
   camera: Camera
-  selectedRect: Rect | null
+  selectedRect: Bounds | null
 }
 
 export const HorizontalRuler: React.FC<Props> = ({ camera, selectedRect }) => {

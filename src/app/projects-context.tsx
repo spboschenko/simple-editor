@@ -82,7 +82,7 @@ export const ProjectsProvider: React.FC<ProjectsProviderProps> = ({
       name: copy.name,
       createdAt: copy.createdAt,
       updatedAt: copy.updatedAt,
-      domainType: copy.payload.document.domainType,
+      domainType: copy.payload.document.nodes[0]?.domainType ?? 'null',
     }
     // Add to top of list (optimistic)
     setProjects(prev => [meta, ...prev])
@@ -97,7 +97,7 @@ export const ProjectsProvider: React.FC<ProjectsProviderProps> = ({
       name: project.name,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
-      domainType: project.payload.document.domainType,
+      domainType: project.payload.document.nodes[0]?.domainType ?? 'null',
     }
     setProjects(prev => [meta, ...prev])
     return meta

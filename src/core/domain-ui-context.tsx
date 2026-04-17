@@ -58,11 +58,16 @@ const DomainUIContext = createContext<DomainUIContextValue>({
 
 export const DomainUIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { state, dispatch } = useEditor()
-  const domain = getDomain(state.document.domainType) ?? null
+
+  // Resolve domain from the first selected node.
+  const firstSelected = state.ui.selection.length > 0
+    ? state.document.nodes.find(n => n.geometry.id === state.ui.selection[0])
+    : null
+  const domain = firstSelected ? (getDomain(firstSelected.domainType) ?? null) : null
 
   // Always-current ref so onClick closures never go stale without re-creating.
-  const dataRef = useRef(state.document.data)
-  dataRef.current = state.document.data
+  const dataRef = useRef(firstSelected?.data)
+  dataRef.current = firstSelected?.data
 
   // Resolved tool list — only regenerated when the domain type changes.
   // dispatch is from useReducer and is stable across renders.
